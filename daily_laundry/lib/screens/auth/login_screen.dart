@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../../api/api_service.dart';
+import '../../service/google_auth_service.dart';
 import '../../theme/app_colors.dart';
 import '../home/home_screen.dart';
 import 'register_screen.dart';
@@ -35,7 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ApiService.token = token;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) =>  HomeScreen()),
+        MaterialPageRoute(builder: (_) => HomeScreen()),
       );
     }
   }
@@ -56,31 +58,85 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       final token = data['token'];
+
       if (token != null && token.isNotEmpty) {
         await _secureStorage.write(key: 'jwt_token', value: token);
         ApiService.token = token;
-        print("💾 Token saved securely: $token");
+
+        Fluttertoast.showToast(
+          msg: "Login Successful!",
+          backgroundColor: Colors.green,
+          textColor: Colors.white,
+        );
 
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) =>  HomeScreen()),
+          MaterialPageRoute(builder: (_) => HomeScreen()),
               (route) => false,
         );
       } else {
-        throw Exception("Invalid login response: missing token");
+        throw Exception("Invalid login response");
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceAll("Exception: ", "");
-      });
+      Fluttertoast.showToast(
+        msg: "Invalid email or password",
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  void _googleLogin() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Google login coming soon!")),
+  /// Google Login
+  void _googleLogin() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+
+    final idToken = await GoogleAuthService.getIdToken();
+  print(idToken);
+    if (idToken == null) {
+      setState(() => _isLoading = false);
+
+      Fluttertoast.showToast(
+        msg: "Google Sign-In cancelled",
+        backgroundColor: Colors.orange,
+        textColor: Colors.white,
+      );
+      return;
+    }
+
+    final jwt = await ApiService.googleLogin(idToken);
+
+    if (jwt == null) {
+      setState(() => _isLoading = false);
+
+      Fluttertoast.showToast(
+        msg: "Google login failed",
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+      return;
+    }
+
+    await _secureStorage.write(key: 'jwt_token', value: jwt);
+    ApiService.token = jwt;
+
+    Fluttertoast.showToast(
+      msg: "Logged in with Google!",
+      backgroundColor: Colors.green,
+      textColor: Colors.white,
+    );
+
+    setState(() => _isLoading = false);
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => HomeScreen()),
+          (route) => false,
     );
   }
 
@@ -129,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // Email Field
+                  // Email
                   TextFormField(
                     controller: _emailController,
                     decoration: _inputDecoration('Email Address', Icons.email),
@@ -145,19 +201,20 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Password Field
+                  // Password
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
-                    decoration: _inputDecoration('Password', Icons.lock).copyWith(
+                    decoration: _inputDecoration('Password', Icons.lock)
+                        .copyWith(
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
                               ? Icons.visibility_off
                               : Icons.visibility,
                         ),
-                        onPressed: () =>
-                            setState(() => _obscurePassword = !_obscurePassword),
+                        onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword),
                       ),
                     ),
                     validator: (value) {
@@ -165,18 +222,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 12),
-
-                  if (_errorMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: Colors.red),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-
                   const SizedBox(height: 16),
 
                   // Login Button
@@ -186,6 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: AppColors.primary),
                   )
                       : ElevatedButton(
+                    onPressed: _login,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
@@ -194,7 +240,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: _login,
                     child: const Text(
                       'Login',
                       style: TextStyle(fontSize: 18),
@@ -225,7 +270,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Register Navigation
+                  // Register Link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

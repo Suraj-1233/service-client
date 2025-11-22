@@ -25,7 +25,7 @@ class _AddressListScreenState extends State<AddressListScreen> {
     try {
       final data = await ApiService.getAddresses(context);
       setState(() {
-        addresses = data; // Already List<Address> from ApiService
+        addresses = data;
         isLoading = false;
       });
     } catch (e) {
@@ -51,12 +51,20 @@ class _AddressListScreenState extends State<AddressListScreen> {
         itemCount: addresses.length,
         itemBuilder: (context, index) {
           final addr = addresses[index];
+
           return Card(
-            margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            margin:
+            EdgeInsets.symmetric(vertical: 8, horizontal: 16),
             child: ListTile(
               title: Text(addr.label),
-              subtitle:
-              Text("${addr.address}, ${addr.city} - ${addr.pincode}"),
+              subtitle: Text(
+                  "${addr.address}, ${addr.city} - ${addr.pincode}"),
+
+              // ⭐ Tap anywhere to SELECT this address
+              onTap: () {
+                Navigator.pop(context, addr);
+              },
+
               trailing: IconButton(
                 icon: Icon(Icons.edit, color: Colors.purple),
                 onPressed: () async {
@@ -74,6 +82,8 @@ class _AddressListScreenState extends State<AddressListScreen> {
           );
         },
       ),
+
+      // ⭐ Floating Button → Add New Address
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final added = await Navigator.push(

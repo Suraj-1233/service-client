@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../../api/api_service.dart';
 import 'address_model.dart';
 
@@ -35,7 +36,8 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
         TextEditingController(text: widget.address?.flatBuilding ?? "");
     _areaStreetController =
         TextEditingController(text: widget.address?.areaStreet ?? "");
-    _cityController = TextEditingController(text: widget.address?.city ?? "");
+    _cityController =
+        TextEditingController(text: widget.address?.city ?? "");
     _pincodeController =
         TextEditingController(text: widget.address?.pincode ?? "");
     _selectedType = widget.address?.label ?? "Home";
@@ -49,7 +51,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
     final newAddress = Address(
       id: widget.address?.id,
       fullName: _fullNameController.text.trim(),
-      mobileNumber: _mobileController.text.trim(), // ✅ fixed name
+      mobileNumber: _mobileController.text.trim(),
       flatBuilding: _flatBuildingController.text.trim(),
       areaStreet: _areaStreetController.text.trim(),
       city: _cityController.text.trim(),
@@ -64,15 +66,22 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
         await ApiService.addAddress(newAddress);
       }
 
-      if (mounted) {
-        Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Address saved successfully")),
-        );
-      }
+      // SUCCESS TOAST
+      Fluttertoast.showToast(
+        msg: "Address saved successfully",
+        backgroundColor: Colors.green,
+        textColor: Colors.white,
+      );
+
+      if (mounted) Navigator.pop(context, true);
+
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Failed to save address: $e")));
+      // ERROR TOAST
+      Fluttertoast.showToast(
+        msg: "Failed to save address",
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -82,7 +91,8 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.address != null ? "Edit Address" : "Add New Address"),
+        title:
+        Text(widget.address != null ? "Edit Address" : "Add New Address"),
         backgroundColor: Colors.purple,
       ),
       body: Padding(
@@ -94,9 +104,10 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
               _buildTextField("Full Name", _fullNameController),
               _buildTextField("Mobile Number", _mobileController,
                   keyboard: TextInputType.phone),
+              _buildTextField("Flat / House No. / Building",
+                  _flatBuildingController),
               _buildTextField(
-                  "Flat / House No. / Building Name", _flatBuildingController),
-              _buildTextField("Street / Area / Landmark", _areaStreetController),
+                  "Street / Area / Landmark", _areaStreetController),
               _buildTextField("City", _cityController),
               _buildTextField("Pincode", _pincodeController,
                   keyboard: TextInputType.number),
@@ -163,9 +174,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
             color: isSelected ? Colors.white : Colors.black87,
             fontWeight: FontWeight.w600,
           ),
-          onSelected: (selected) {
-            setState(() => _selectedType = type);
-          },
+          onSelected: (_) => setState(() => _selectedType = type),
         );
       }).toList(),
     );

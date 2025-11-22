@@ -67,7 +67,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         : 'N/A';
     String formattedPickupDate = pickupDate.isNotEmpty
         ? DateFormat('dd MMM yyyy, hh:mm a')
-        .format(DateTime.parse(createdAt).toLocal())
+        .format(DateTime.parse(pickupDate).toLocal())
         : 'N/A';
 
     // 🔄 Transform items into grouped map: { serviceName: [item1, item2, ...] }

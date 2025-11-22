@@ -9,6 +9,8 @@ import '../screens/auth/login_screen.dart';
 class ApiService {
   // 🌐 Base URL for your backend
   static const String baseUrl = 'http://3.94.103.35:8080/api';
+  // static const String baseUrl = "http://localhost:8080/api";
+  // static const String baseUrl = "http://10.0.2.2:8080/api";
 
   // 🔒 Secure token storage
   static final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
@@ -22,6 +24,36 @@ class ApiService {
     } catch (e) {
       debugPrint("⚠️ Failed to load token from secure storage: $e");
     }
+  }
+
+
+
+
+
+  // ------------------ Google Login ------------------
+  static Future<String?> googleLogin(String idToken) async {
+    final url = "$baseUrl/auth/google";
+
+    final response = await http.post(
+      Uri.parse(url),
+      headers: await _headers(), // no auth needed
+      body: jsonEncode({"idToken": idToken}),
+    );
+    print("Google Login Response => ${response.body}");
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final token = data["token"];
+
+      if (token != null) {
+        ApiService.token = token;
+        await saveToken(token);
+        return token;
+      }
+    }
+
+    print("Google Login Failed => ${response.body}");
+    return null;
   }
 
   // ------------------ Save & clear token ------------------
@@ -376,4 +408,16 @@ class ApiService {
       throw Exception('Failed to load active orders: ${response.statusCode} ${response.body}');
     }
   }
+
+// Fetch Number
+  static Future<String> getSupportNumber() async {
+    final response = await http.get(Uri.parse("$baseUrl/support/phone"));
+
+    if (response.statusCode == 200) {
+      return response.body.toString();
+    } else {
+      throw Exception("Failed to fetch support number");
+    }
+  }
+
 }

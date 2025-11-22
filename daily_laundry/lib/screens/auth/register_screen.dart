@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:daily_laundry/screens/home/home_screen.dart';
 import '../../theme/app_colors.dart';
 import '../../api/api_service.dart';
+import '../../service/google_auth_service.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -26,6 +28,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
+  // 🚀 REGISTER USER
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -39,48 +42,101 @@ class _RegisterScreenState extends State<RegisterScreen> {
     };
 
     try {
-      print("➡️ Registering user: $userData");
       final response = await ApiService.registerUser(userData);
-      print("⬅️ Register response: $response");
 
-      if (response.containsKey('token')) {
-        final token = response['token'] as String?;
-        if (token != null && token.isNotEmpty) {
-          await _secureStorage.write(key: 'jwt_token', value: token);
-          ApiService.token = token;
-          print("💾 Token saved securely: $token");
+      // If token received → auto login
+      if (response.containsKey("token") &&
+          response["token"] != null &&
+          response["token"].toString().isNotEmpty) {
+        final token = response["token"];
 
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) =>  HomeScreen()),
-                (route) => false,
-          );
-          return;
-        }
+        await _secureStorage.write(key: 'jwt_token', value: token);
+        ApiService.token = token;
+
+        Fluttertoast.showToast(
+          msg: "Registration Successful!",
+          backgroundColor: Colors.green,
+          textColor: Colors.white,
+        );
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => HomeScreen()),
+              (route) => false,
+        );
+        return;
       }
 
-      // If registration succeeds but no token returned → ask to login manually
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registration successful! Please login.')),
+      // If token missing → Normal register → Go Login
+      Fluttertoast.showToast(
+        msg: "Registered! Please Login.",
+        backgroundColor: Colors.blue,
+        textColor: Colors.white,
       );
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
     } catch (e) {
-      print("💥 Registration error: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+      Fluttertoast.showToast(
+        msg: "Registration failed! Try again.",
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
       );
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
+  // 🚀 GOOGLE SIGN-IN
+  Future<void> _googleLogin() async {
+    setState(() => _isLoading = true);
+
+    final idToken = await GoogleAuthService.getIdToken();
+
+    if (idToken == null) {
+      setState(() => _isLoading = false);
+      Fluttertoast.showToast(
+        msg: "Google Sign-In cancelled",
+        backgroundColor: Colors.orange,
+        textColor: Colors.white,
+      );
+      return;
+    }
+
+    final jwt = await ApiService.googleLogin(idToken);
+
+    if (jwt == null) {
+      setState(() => _isLoading = false);
+      Fluttertoast.showToast(
+        msg: "Google Login Failed",
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+      return;
+    }
+
+    await _secureStorage.write(key: "jwt_token", value: jwt);
+    ApiService.token = jwt;
+
+    Fluttertoast.showToast(
+      msg: "Logged in with Google!",
+      backgroundColor: Colors.green,
+      textColor: Colors.white,
+    );
+
+    setState(() => _isLoading = false);
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => HomeScreen()),
+          (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -142,36 +198,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   TextFormField(
                     controller: _emailController,
                     decoration: _inputDecoration('Email Address', Icons.email),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value!.isEmpty) return 'Please enter your email';
-                      final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
-                      if (!emailRegex.hasMatch(value)) {
-                        return 'Enter a valid email address';
-                      }
-                      return null;
-                    },
+                    validator: (value) =>
+                    value!.isEmpty ? 'Please enter your email' : null,
                   ),
                   const SizedBox(height: 16),
 
-                  // Phone Number
+                  // Phone
                   TextFormField(
                     controller: _phoneController,
                     decoration: _inputDecoration('Phone Number', Icons.phone),
-                    keyboardType: TextInputType.phone,
-                    validator: (value) {
-                      if (value!.isEmpty) return 'Please enter your phone number';
-                      if (!RegExp(r'^[0-9]{10}$').hasMatch(value)) {
-                        return 'Enter a valid 10-digit phone number';
-                      }
-                      return null;
-                    },
+                    validator: (value) =>
+                    value!.isEmpty ? 'Please enter your phone number' : null,
                   ),
                   const SizedBox(height: 16),
 
                   // Password
                   TextFormField(
                     controller: _passwordController,
+                    obscureText: _obscurePassword,
                     decoration: _inputDecoration('Password', Icons.lock).copyWith(
                       suffixIcon: IconButton(
                         icon: Icon(
@@ -179,26 +223,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ? Icons.visibility_off
                               : Icons.visibility,
                         ),
-                        onPressed: () => setState(() =>
-                        _obscurePassword = !_obscurePassword),
+                        onPressed: () =>
+                            setState(() => _obscurePassword = !_obscurePassword),
                       ),
                     ),
-                    obscureText: _obscurePassword,
-                    validator: (value) {
-                      if (value!.isEmpty) return 'Please enter your password';
-                      if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
-                      }
-                      return null;
-                    },
+                    validator: (value) =>
+                    value!.length < 6 ? 'Min 6 characters required' : null,
                   ),
                   const SizedBox(height: 16),
 
                   // Confirm Password
                   TextFormField(
                     controller: _confirmPasswordController,
-                    decoration:
-                    _inputDecoration('Confirm Password', Icons.lock_outline)
+                    obscureText: _obscureConfirmPassword,
+                    decoration: _inputDecoration(
+                        'Confirm Password', Icons.lock_outline)
                         .copyWith(
                       suffixIcon: IconButton(
                         icon: Icon(
@@ -210,17 +249,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         _obscureConfirmPassword = !_obscureConfirmPassword),
                       ),
                     ),
-                    obscureText: _obscureConfirmPassword,
                     validator: (value) {
-                      if (value!.isEmpty) {
-                        return 'Please confirm your password';
-                      }
                       if (value != _passwordController.text) {
                         return 'Passwords do not match';
                       }
                       return null;
                     },
                   ),
+
                   const SizedBox(height: 24),
 
                   // Register Button
@@ -232,7 +268,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       : ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
                       minimumSize: const Size(double.infinity, 50),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -240,11 +275,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     onPressed: _register,
                     child: const Text(
-                      'Register',
+                      "Register",
                       style: TextStyle(fontSize: 18),
                     ),
                   ),
+
                   const SizedBox(height: 16),
+
+                  // GOOGLE SIGN-IN
+                  ElevatedButton.icon(
+                    onPressed: _googleLogin,
+                    icon: const Icon(
+                      Icons.g_mobiledata,
+                      color: Colors.red,
+                      size: 28,
+                    ),
+                    label: const Text(
+                      "Sign Up with Google",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black87,
+                      minimumSize: const Size(double.infinity, 50),
+                      side: BorderSide(color: Colors.grey.shade300),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
 
                   // Go to Login
                   Row(

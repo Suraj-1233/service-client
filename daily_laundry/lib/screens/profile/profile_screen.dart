@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../../api/api_service.dart';
+import '../../service/google_auth_service.dart';
 import '../../widgets/profile_item_card.dart';
 import '../address/address_model.dart';
 import '../auth/login_screen.dart';
@@ -65,12 +67,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _logout() async {
     try {
+      await GoogleAuthService.googleSignIn.signOut();
       print("🚪 Logging out...");
       await _secureStorage.delete(key: 'jwt_token');
       ApiService.token = null;
       print("🧹 Token cleared from secure storage and memory");
 
-      if (mounted) {
+    // / Toast Message
+    Fluttertoast.showToast(
+    msg: "Logout Successful!",
+    backgroundColor: Colors.green,
+    textColor: Colors.white,
+    gravity: ToastGravity.BOTTOM,
+    );
+
+    if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -78,9 +89,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     } catch (e) {
-      print("⚠️ Logout failed: $e");
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Logout failed: $e")));
+      Fluttertoast.showToast(
+        msg: "Logout Failed!",
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
     }
   }
 
